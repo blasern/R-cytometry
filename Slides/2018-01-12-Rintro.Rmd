@@ -1,0 +1,70 @@
+---
+title: | 
+  | R for cytometry - introduction
+author: |
+  Nello Blaser
+institute:
+  Department of Mathematics, University of Bergen
+date: January 12^th^ 2018
+output: 
+    beamer_presentation:
+        fonttheme: "structurebold"
+        includes:
+            in_header: header.tex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+pkgs2load <- c()
+sapply(pkgs2load, require, character.only = TRUE)
+```
+
+
+## R for cytometry
+- Getting started
+- Working with fcs files
+- Plotting
+- Interface with cytobank
+- Algorithms
+    - SPADE
+    - tSNE
+    - PhenoGraph
+    - Citrus
+- Any wishes?
+
+## Lecture style
+- Introduction \vspace{8pt}
+- Hands-on \vspace{8pt}
+- Questions-based \vspace{8pt}
+- Problem solving strategies
+
+## R package universe
+- [R](https://www.r-project.org/) \vspace{8pt}
+- [RStudio](https://www.rstudio.com/) \vspace{8pt}
+- [CRAN](https://cran.r-project.org/) \vspace{8pt}
+- [Bioconductor](https://www.bioconductor.org/) \vspace{8pt}
+- [Github](https://github.com/)
+
+## Installing packages
+
+CRAN:
+```{R cran-install, eval = FALSE, echo = TRUE}
+install.packages("ggplot2")
+```
+
+Bioconductor
+```{R bioc-install, eval = FALSE, echo = TRUE}
+source("https://bioconductor.org/biocLite.R")
+biocLite("flowCore")
+```
+
+Github
+```{R gith-install, eval = FALSE, echo = TRUE}
+install.packages("devtools")
+devtools::install_github("nolanlab/citrus")
+```
+
+## Basic data structures
+Go through [tutorial](https://swcarpentry.github.io/r-novice-inflammation/13-supp-data-structures/).
+
+## Reading in data
