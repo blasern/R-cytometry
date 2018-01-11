@@ -65,6 +65,12 @@ devtools::install_github("nolanlab/citrus")
 ```
 
 ## Basic data structures
-Go through [tutorial](https://swcarpentry.github.io/r-novice-inflammation/13-supp-data-structures/).
+Go through this [tutorial](https://swcarpentry.github.io/r-novice-inflammation/13-supp-data-structures/).
 
 ## Reading in data
+Use `readr`:
+```{R install-use-readr, eval = FALSE, echo = TRUE}
+install.packages("readr")
+require(readr)
+```
+Go through this [tutorial](http://readr.tidyverse.org/articles/readr.html#rectangular-parsers)
