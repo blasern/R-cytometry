@@ -64,6 +64,20 @@ install.packages("devtools")
 devtools::install_github("nolanlab/citrus")
 ```
 
+## Packages for this course
+```{R course-install, eval = FALSE, echo = TRUE}
+cran_pkgs <- c("Rtsne", "ggplot2", "dplyr", 
+               "data.table")
+bio_pkgs <- c("flowCore", "FlowRepositoryR",
+              "flowUtils", "FlowSOM", "spade", 
+              "flowClust", "flowMerge", "flowMeans", 
+              "SamSPECTRAL", "flowPeaks", 
+              "immunoClust")
+
+install.packages(cran_pkgs)
+biocLite(bio_pkgs)
+devtools::install_github('nolanlab/citrus')
+```
 ## Basic data structures
 Go through this [tutorial](https://swcarpentry.github.io/r-novice-inflammation/13-supp-data-structures/).
 
