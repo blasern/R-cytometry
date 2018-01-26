@@ -1,0 +1,131 @@
+---
+title: | 
+  | R for cytometry - plotting
+author: |
+  Nello Blaser
+institute:
+  Department of Mathematics, University of Bergen
+date: January 26^th^ 2018
+output: 
+    beamer_presentation:
+        fonttheme: "structurebold"
+        includes:
+            in_header: header.tex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+pkgs2load <- c()
+sapply(pkgs2load, require, character.only = TRUE)
+```
+
+
+## plotting with R
+- Plotting commands from different algorithms \vspace{8pt}
+- `ggplot` \vspace{8pt}
+
+## ggplot simple example
+```{r ggplot-simple, echo = TRUE, message=FALSE, fig.height = 3, fig.width = 7}
+require(ggplot2)
+ggplot(mtcars, aes(x = wt, y = mpg)) + 
+  geom_point()
+```
+
+## ggplot with flow data
+```{r ggplot-flow-scatter, echo = TRUE, message=FALSE, warning=FALSE, fig.height = 3, fig.width = 7}
+require(flowCore)
+data(GvHD)
+frame <- GvHD[[1]]
+df <- as.data.frame(frame@exprs)
+ggplot(df, aes(x = `FL1-H`, y = `FL2-H`)) + 
+  geom_point()
+```
+
+## log scales
+```{r ggplot-flow-log, echo = TRUE, message=FALSE, warning=FALSE, fig.height = 3, fig.width = 7}
+require(scales)
+ggplot(df, aes(x = `FL1-H`, y = `FL2-H`)) + 
+  geom_point() + 
+  scale_x_log10(breaks = 10^(0:5), 
+    labels = trans_format("log10", math_format(10^.x))) + 
+  scale_y_log10(breaks = 10^(0:5), 
+    labels = trans_format("log10", math_format(10^.x)))
+```
+
+## colors
+```{r ggplot-flow-color, echo = TRUE, message=FALSE, warning=FALSE, fig.height = 2, fig.width = 7}
+require(scales)
+ggplot(df, aes(x = `FL1-H`, y = `FL2-H`, 
+               color = log10(`FSC-H`))) + 
+  geom_point() + 
+  scale_x_log10(breaks = 10^(0:5), 
+    labels = trans_format("log10", math_format(10^.x))) + 
+  scale_y_log10(breaks = 10^(0:5), 
+    labels = trans_format("log10", math_format(10^.x))) + 
+  scale_color_gradient(low = "#0000FF", high = "#CD4000")
+```
+
+## density
+```{r density-estimation, echo = TRUE, message=FALSE, warning=FALSE, fig.height = 3, fig.width = 7}
+require(MASS)
+get_density <- function(x, y, n = 100){
+  dens <- kde2d(x = x, y = y, n = n)
+  ix <- findInterval(x, dens$x)
+  iy <- findInterval(y, dens$y)
+  dens$z[cbind(ix, iy)]
+}
+```
+
+## density colors
+```{r ggplot-flow-density, echo = TRUE, message=FALSE, warning=FALSE, fig.height = 2, fig.width = 7}
+ggplot(df, aes(x = `FL1-H`, y = `FL2-H`, 
+    color = get_density(log10(`FL1-H`), log10(`FL2-H`))))+ 
+  geom_point() + 
+  scale_x_log10(breaks = 10^(0:5), 
+    labels = trans_format("log10", math_format(10^.x))) + 
+  scale_y_log10(breaks = 10^(0:5), 
+    labels = trans_format("log10", math_format(10^.x))) + 
+  scale_color_gradient(name = "density",
+    low = "#0000FF", high = "#CD4000")
+```
+
+## multiple plots at same time
+```{r ggplot-flow-facets, echo = TRUE, message=FALSE, warning=FALSE, fig.height = 2, fig.width = 7}
+require(reshape2)
+require(dplyr)
+df_melt <- melt(df, id.vars = "FL1-H")
+df_melt <- mutate(group_by(df_melt, variable), 
+  density = get_density(log10(`FL1-H` + 1), 
+                        log10(value + 1)))
+p <- ggplot(df_melt, aes(x = `FL1-H`, y = value, 
+                         color = density))+ 
+  geom_point() + 
+  scale_x_log10(breaks = 10^(0:5), 
+    labels = trans_format("log10", math_format(10^.x))) + 
+  scale_y_log10(breaks = 10^(0:5), 
+    labels = trans_format("log10", math_format(10^.x))) + 
+  scale_color_gradient(name = "density",
+    low = "#0000FF", high = "#CD4000") + 
+  facet_wrap(~variable) + 
+  theme_bw()
+```
+
+## multiple plots at same time
+```{r ggplot-flow-facets-print, echo = TRUE, message=FALSE, warning=FALSE, fig.height = 5, fig.width = 7}
+print(p)
+```
+
+## further reading
+Have a look at the following: 
+
+```{r ggplot-help, echo = TRUE, eval = FALSE}
+?geom_line
+?geom_abline
+?geom_smooth
+?geom_linerange
+?geom_boxplot
+?geom_histogram
+?geom_text
+```
+
+Also [this tutorial](tutorials.iq.harvard.edu/R/Rgraphics/Rgraphics.html).
