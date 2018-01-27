@@ -129,3 +129,27 @@ Have a look at the following:
 ```
 
 Also [this tutorial](tutorials.iq.harvard.edu/R/Rgraphics/Rgraphics.html).
+
+## additional stuff from class
+```{r ggplot-flow-transformed, echo = TRUE, message=FALSE, warning=FALSE, fig.height = 2, fig.width = 7}
+df_asinh <- as.data.frame(asinh(frame@exprs/5))
+df_asinh$density <- get_density(df_asinh$`FL1-H`, 
+                                df_asinh$`FL2-H`)
+df_asinh$density[df_asinh$density < 0.02] <- NA 
+
+p <- ggplot(df_asinh, 
+            aes(x = `FL1-H`, y = `FL2-H`, 
+                color = density))+ 
+  geom_point() + 
+  scale_x_continuous(name = "CD45") +
+  scale_y_continuous(name = "CD33") +
+  scale_color_gradient(name = "density",
+                       low = "blue", high = "red", 
+                       limits = c(0, 0.2), 
+                       na.value = "black")
+```
+
+## additional stuff from class
+```{r ggplot-flow-transformed-print, echo = TRUE, message=FALSE, warning=FALSE, fig.height = 5, fig.width = 7}
+print(p)
+```
