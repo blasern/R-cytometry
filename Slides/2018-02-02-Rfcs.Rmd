@@ -48,6 +48,19 @@ pData(ff@parameters)
 ff@exprs[1:10, 1:5]
 ```
 
+## Writing fcs files
+```{r write-fcs-file, echo = TRUE, eval=FALSE, fig.height = 3, fig.width = 7}
+# specify output location and name
+setwd("xxx")
+data_dir <- "../data/"
+file_name <- "test_file.fcs"
+# write fcs file
+write.FCS(ff, 
+          filename = paste0(data_dir, file_name))
+```
+
+**Important**: You are responsible that the expressions and the metadata in the new fcs-file correspond to each other!
+
 ## reading multiple fcs files
 ```{r multiple-fcs-files, echo = TRUE, message=FALSE, warning=FALSE, fig.height = 3, fig.width = 7}
 # file location
@@ -67,4 +80,35 @@ fset
 
 # flowFrame
 fset[[1]]@exprs[1:3, 1:5]
+```
+
+## Data from cytobank
+```{r cytobank-1, echo = TRUE, eval=FALSE, fig.height = 3, fig.width = 7}
+# load CRAN package
+require(CytobankAPI)
+# Authenticate via authentication token
+cyto_session <- authenticate(site="cellmass",
+                             auth_token="xxx")
+# specify experiment id
+experiment_id <- 123
+# specify data directory
+data_dir <- "fcs_from_cytobank"
+dir.create(data_dir, recursive = TRUE)
+# list fcs files
+files <- fcs_files.list(cyto_session, 
+                        experiment_id = experiment_id)
+
+```
+## Data from cytobank
+```{r cytobank-2, echo = TRUE, eval=FALSE, fig.height = 3, fig.width = 7}
+# download fcs files
+downloaded_zip <- fcs_files.download_zip(
+  UserSession = cyto_session, 
+  experiment_id = experiment_id, 
+  fcs_files = files[, "id"], 
+  directory = data_dir, 
+  timeout = 60*nrow(files))
+unzip(downloaded_zip, exdir = data_dir)
+# read fcs files
+fset <- read.flowSet(paste0(data_dir, files))
 ```
