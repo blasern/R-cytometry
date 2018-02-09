@@ -1,5 +1,5 @@
-# PDFs
-*.pdf
+# Data
+/Slides/fcs_from_cytobank/
 
 # History files
 .Rhistory

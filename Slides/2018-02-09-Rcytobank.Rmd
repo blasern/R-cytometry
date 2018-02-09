@@ -1,0 +1,108 @@
+---
+title: | 
+  | R for cytometry - cytobank
+author: |
+  Nello Blaser
+institute:
+  Department of Mathematics, University of Bergen
+date: February 9^th^ 2018
+output: 
+    beamer_presentation:
+        fonttheme: "structurebold"
+        includes:
+            in_header: header.tex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Download data from cytobank
+```{r cytobank-download-1, echo = TRUE, eval=FALSE, fig.height = 3, fig.width = 7}
+# load CRAN package
+require(CytobankAPI)
+# Authenticate via authentication token
+cyto_session <- authenticate(site="cellmass",
+                             auth_token="xxx")
+# specify experiment id
+experiment_id <- 12
+# specify data directory
+data_dir <- "fcs_from_cytobank/"
+dir.create(data_dir, recursive = TRUE)
+# list fcs files
+files <- fcs_files.list(cyto_session, 
+                        experiment_id = experiment_id)
+```
+
+## Download data from cytobank
+```{r cytobank-download-2, echo = TRUE, eval=FALSE, fig.height = 3, fig.width = 7}
+# download fcs files
+downloaded_zip <- fcs_files.download_zip(
+  UserSession = cyto_session, 
+  experiment_id = experiment_id, 
+  fcs_files = files[, "id"], 
+  directory = data_dir, 
+  timeout = 60*nrow(files))
+unzip(downloaded_zip, exdir = data_dir)
+```
+
+## Change data
+```{r prepare-data, echo = FALSE, eval=TRUE, fig.height = 3, fig.width = 7}
+data_dir <- "fcs_from_cytobank/"
+file_name <- "Marrow1_01_Basal1.fcs"
+```
+```{r change-data, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7}
+require(flowCore)
+# read fcs file
+ff <- read.FCS(paste0(data_dir, file_name))
+ff_new <- ff
+ff_new@exprs <- cbind(
+  ff@exprs, 
+  cluster = rbinom(nrow(ff@exprs), size = 1, prob = 0.5))
+ff_new@parameters@data <- rbind(
+  ff@parameters@data, 
+  data.frame(
+    name = "cluster", 
+    desc = "random_cluster", range = 1,
+    minRange = 0, maxRange = 1, 
+    row.names = 
+      paste0("$P", nrow(ff@parameters@data) + 1)))
+```
+
+## A look at the changed data
+```{r changed-data, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, results='hide'}
+# measured intensities
+dim(ff@exprs)
+dim(ff_new@exprs)
+
+# annotation
+tail(pData(ff@parameters))
+tail(pData(ff_new@parameters))
+```
+
+## Writing FCS file
+```{r write-data, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7}
+# write file
+new_file_name <- gsub(".fcs", "_new.fcs", file_name)
+write.FCS(ff_new,
+          filename = paste0(data_dir, new_file_name))
+# zip output files
+zip_filename <- paste0(data_dir, "clustered_data.zip")
+zip(zip_filename, paste0(data_dir, new_file_name))
+```
+
+## Uploading files to cytobank
+```{r upload, echo = TRUE, eval=FALSE}
+# create new experiment
+new_experiment_name <- "test_upload"
+new_experiment <- experiments.new(
+  cyto_session, 
+  experiment_name = new_experiment_name, 
+  purpose = "testing")
+
+# upload files
+fcs_files.upload_zip(cyto_session, 
+                     experiment_id = new_experiment$id, 
+                     file_path = zip_filename, 
+                     timeout = 720)
+```
