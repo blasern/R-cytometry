@@ -1,0 +1,164 @@
+---
+title: | 
+  | R for cytometry - FlowSOM
+author: |
+  Nello Blaser
+institute:
+  Department of Mathematics, University of Bergen
+date: February 16^th^ 2018
+output: 
+    beamer_presentation:
+        fonttheme: "structurebold"
+        includes:
+            in_header: header.tex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Download data from cytobank
+```{r cytobank-download-1, echo = TRUE, eval=FALSE, fig.height = 3, fig.width = 7}
+# load CRAN package
+require(CytobankAPI)
+# Authenticate via authentication token
+cyto_session <- authenticate(site="cellmass",
+                             auth_token="xxx")
+# specify experiment id
+experiment_id <- 12
+# specify data directory
+data_dir <- "fcs_from_cytobank"
+dir.create(data_dir, recursive = TRUE)
+# list fcs files
+files <- fcs_files.list(cyto_session, 
+                        experiment_id = experiment_id)
+```
+
+## Download data from cytobank
+```{r cytobank-download-2, echo = TRUE, eval=FALSE, fig.height = 3, fig.width = 7}
+# download fcs files
+downloaded_zip <- fcs_files.download_zip(
+  UserSession = cyto_session, 
+  experiment_id = experiment_id, 
+  fcs_files = files[, "id"], 
+  directory = data_dir, 
+  timeout = 60*nrow(files))
+unzip(downloaded_zip, exdir = data_dir)
+```
+
+## Read fcs files
+```{r prepare-data, echo = FALSE, eval=TRUE, fig.height = 3, fig.width = 7}
+data_dir <- "fcs_from_cytobank"
+```
+```{r load-data, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache=TRUE, results='hide'}
+require(flowCore)
+# read fcs file
+files <- paste0(data_dir, "/", 
+               list.files(data_dir, 
+                          pattern = ".fcs"))
+fset <- read.flowSet(files)
+# decide on lineage markers
+pData(fset[[1]]@parameters)
+lineage_markers <- c(
+  "In(114.903)-Dual", "Cd(109.903)-Dual", 
+  "Nd(143.910)-Dual", "Nd(144.912)-Dual", 
+  "Nd(145.913)-Dual", "Nd(147.916)-Dual", 
+  "Sm(146.914)-Dual", "Er(166.932)-Dual")
+```
+
+## FlowSOM
+```{r som, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE, dependson="load-data"}
+require(FlowSOM)
+# Set SOM parameters
+flowSOM_metaClusters <- 10
+flowSOM_xdim <- 7
+flowSOM_ydim <- 7
+flowSOM_seed <- 20180216 # for reproducible results
+
+# run self-organizing maps
+fsom <- FlowSOM(fset,
+                colsToUse = lineage_markers, 
+                xdim=flowSOM_xdim, 
+                ydim=flowSOM_xdim,
+                nClus = flowSOM_metaClusters, 
+                seed = flowSOM_seed)
+```
+
+## Plotting with FlowSOM
+```{r plot-som, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3.5, fig.width = 7, cache = TRUE, dependson="som"}
+PlotStars(UpdateNodeSize(fsom[[1]], reset=T),
+          view = "MST",
+          backgroundValues = as.factor(fsom[[2]]))
+```
+
+## Summarize results
+```{r som-summary, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE, dependson = "som"}
+fset_new <- fset
+# get clusters 
+clusters <- fsom$FlowSOM$map$mapping[, 1]
+meta_clusters <- as.numeric(fsom$metaclustering[clusters])
+filenames <- rep(sampleNames(fset), 
+                 fsApply(fset, nrow, use.exprs = TRUE))
+res_data <- data.frame(clusters = clusters, 
+                       meta_clusters = meta_clusters, 
+                       filenames = filenames)
+head(res_data)
+```
+
+## Update data
+```{r data-update-fct, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE}
+update_ff <- function(ff, res_data){
+  rd <- res_data[res_data$filenames == identifier(ff), 
+                 c("clusters", "meta_clusters")]
+  ff@exprs <- cbind(ff@exprs, as.matrix(rd))
+  ff@parameters@data <- rbind(
+    ff@parameters@data,
+    data.frame(
+      name = c("cluster", "meta_cluster"),
+      desc = "som_clustering", 
+      range = c(max(res_data$clusters), 
+                max(res_data$meta_clusters)),
+      minRange = 1, 
+      maxRange = c(max(res_data$clusters), 
+                   max(res_data$meta_clusters)),
+      row.names =
+        paste0("$P", nrow(ff@parameters@data) + 1:2)))
+  ff
+}
+```
+
+## Update data
+```{r change-data, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE, dependson = c("som-summary", "data-update-fct")}
+# change data
+fset_new <- fsApply(fset, update_ff, 
+                    res_data = res_data)
+fset_new
+```
+
+## Writing FCS file
+```{r write-data, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, dependson="change-data"}
+# write file
+new_files <- gsub(".fcs", "_som.fcs", files)
+flowCore::write.flowSet(fset_new,
+                        outdir = ".",
+                        filename = new_files)
+# zip output files
+zip_filename <- paste0(data_dir, "clustered_som.zip")
+zip(zip_filename, new_files)
+```
+
+## Uploading files to cytobank
+```{r upload, echo = TRUE, eval=FALSE}
+# create new experiment
+new_experiment_name <- "test_som"
+new_experiment <- experiments.new(
+  cyto_session,
+  experiment_name = new_experiment_name,
+  purpose = "testing som")
+
+# upload files
+fcs_files.upload_zip(cyto_session,
+                     experiment_id = new_experiment$id,
+                     file_path = zip_filename,
+                     timeout = 720)
+```

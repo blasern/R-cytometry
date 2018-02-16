@@ -1,6 +1,10 @@
 # Data
 /Slides/fcs_from_cytobank/
 
+# Caches
+/Slides/*_cache/
+/Slides/*_files/
+
 # History files
 .Rhistory
 .Rapp.history
