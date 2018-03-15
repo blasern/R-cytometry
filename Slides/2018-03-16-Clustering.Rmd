@@ -1,0 +1,273 @@
+---
+title: | 
+  | R for cytometry - phenograph and spade
+author: |
+  Nello Blaser
+institute:
+  Department of Mathematics, University of Bergen
+date: March 16^th^ 2018
+output: 
+    beamer_presentation:
+        fonttheme: "structurebold"
+        includes:
+            in_header: header.tex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Download data from cytobank
+```{r cytobank-download-1, echo = TRUE, eval=FALSE, fig.height = 3, fig.width = 7}
+# load CRAN package
+require(CytobankAPI)
+# Authenticate via authentication token
+cyto_session <- authenticate(site="cellmass",
+                             auth_token="xxx")
+# specify experiment id
+experiment_id <- 12
+# specify data directory
+data_dir <- "fcs_from_cytobank"
+dir.create(data_dir, recursive = TRUE)
+# list fcs files
+files <- fcs_files.list(cyto_session, 
+                        experiment_id = experiment_id)
+```
+
+## Download data from cytobank
+```{r cytobank-download-2, echo = TRUE, eval=FALSE, fig.height = 3, fig.width = 7}
+# download fcs files
+downloaded_zip <- fcs_files.download_zip(
+  UserSession = cyto_session, 
+  experiment_id = experiment_id, 
+  fcs_files = files[, "id"], 
+  directory = data_dir, 
+  timeout = 60*nrow(files))
+unzip(downloaded_zip, exdir = data_dir)
+```
+
+## Read fcs files
+```{r data-dir, echo = FALSE, results = "hide", cache=TRUE}
+data_dir <- "fcs_from_cytobank"
+```
+```{r load-data, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache=TRUE, results='hide', dependson = "data-dir"}
+require(flowCore)
+# read fcs file
+files <- paste0(data_dir, "/", 
+               list.files(data_dir, 
+                          pattern = "\\.fcs"))
+fset <- read.flowSet(files)
+```
+
+## Transform data
+```{r transform, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE, results = "hide", dependson="load-data"}
+# decide on lineage markers
+pData(fset[[1]]@parameters)
+lineage_markers <- c(
+  "In(114.903)-Dual", "Cd(109.903)-Dual", 
+  "Nd(143.910)-Dual", "Nd(144.912)-Dual", 
+  "Nd(145.913)-Dual", "Nd(147.916)-Dual", 
+  "Sm(146.914)-Dual", "Er(166.932)-Dual")
+# asinh transform 
+fset_lineage <- fsApply(fset, function(ff){
+  ff <- ff[, lineage_markers]
+  exprs(ff) <- asinh(exprs(ff)/5)
+  ff
+})
+```
+
+## FlowSOM
+```{r som, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE, dependson="transform"}
+require(FlowSOM)
+# Set SOM parameters
+flowSOM_metaClusters <- 10
+flowSOM_xdim <- 7
+flowSOM_ydim <- 7
+flowSOM_seed <- 20180309 # for reproducible results
+
+# run self-organizing maps
+fsom <- FlowSOM(fset_lineage,
+                colsToUse = lineage_markers, 
+                xdim=flowSOM_xdim, 
+                ydim=flowSOM_xdim,
+                nClus = flowSOM_metaClusters, 
+                seed = flowSOM_seed)
+```
+
+## Plotting with FlowSOM
+```{r plot-som, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3.5, fig.width = 7, cache = TRUE, dependson="som"}
+PlotStars(UpdateNodeSize(fsom[[1]], reset=T),
+          view = "MST",
+          backgroundValues = as.factor(fsom[[2]]))
+```
+
+## Subsample
+```{r subsampling, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE, dependson="transform"}
+# set a seed for reproducible results
+set.seed(20180308) 
+# extract data
+concatinated_dta <- fsApply(fset_lineage, exprs)
+# subsample 
+subsample <- sample(1:nrow(concatinated_dta), 1000)
+# subsampled data
+subsampled_dta <- concatinated_dta[subsample, ]
+```
+
+## Phenograph
+```{r phenograph, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE, dependson="subsampling"}
+## devtools::install_github("JinmiaoChenLab/Rphenograph")
+require(Rphenograph)
+# Set spade parameters
+phenograph_neighbors <- 50
+
+# run phenograph
+pheno <- Rphenograph(subsampled_dta[, lineage_markers], 
+                     k = phenograph_neighbors)
+pheno_cluster <- factor(membership(pheno[[2]]))
+```
+
+## SPADE
+```{r spade, echo = TRUE, warning = FALSE, message = FALSE, eval=FALSE, fig.height = 3, fig.width = 7, cache = TRUE, dependson = "transform"}
+require(spade)
+# prepare to run spade
+result_dir <- "spade_results"
+dir.create(result_dir)
+n_spade_clusters <- 200
+# run spade
+SPADE.driver(files, 
+             out_dir = result_dir, 
+             cluster_cols = lineage_markers, 
+             k = n_spade_clusters)
+```
+
+## Plot SPADE
+```{r spade-plot, echo = TRUE, warning = FALSE, message = FALSE, eval=FALSE, fig.height = 3, fig.width = 7, cache = TRUE, dependson = "spade"}
+# get necessary information
+layout <- read.table(paste0(result_dir, "/layout.table"))
+mst <- read.graph(paste0(result_dir, "/mst.gml"), 
+                  format = "gml")
+# plotting
+SPADE.plot.trees(mst, result_dir, 
+                 file_pattern = "*fcs*Rsave", 
+                 layout = as.matrix(layout), 
+                 out_dir = result_dir, 
+                 size_scale_factor = 1.2)
+```
+
+## Plot SPADE
+![spade_figure](spade_results/Marrow1_01_Basal1.fcs.density.fcs.cluster.fcs.anno.Rsave.cvsabsoluteEventNumber.pdf)
+
+## t-SNE
+```{r tsne, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE, dependson = "subsampling"}
+# load tSNE package
+require(Rtsne)
+# Run tSNE 
+tsne_out <- Rtsne(subsampled_dta[, lineage_markers]) 
+```
+
+## Combine results
+```{r combine-results, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE, dependson = c("tsne", "som", "phenograph")}
+# som results
+fsom_cluster <- fsom$FlowSOM$map$mapping[subsample, 1]
+fsom_meta_cluster <- fsom$metaclustering[fsom_cluster]
+# combined results
+result <- data.frame(
+  tSNE1 = tsne_out$Y[, 1], 
+  tSNE2 = tsne_out$Y[, 2],
+  fsom_cluster = factor(fsom_cluster),
+  fsom_meta_cluster = fsom_meta_cluster, 
+  pheno_cluster = factor(pheno_cluster))
+```
+
+## Plot 
+```{r tsne-plot-phenograph, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE, dependson = c("combine-results")}
+require(ggplot2)
+p_phenograph <- ggplot(result, aes(x = tSNE1, y = tSNE2, 
+                        color = pheno_cluster)) +
+  geom_point() + 
+  scale_color_discrete(guide = FALSE) +
+  theme_bw(base_size = 16)
+```
+
+## Plot 
+```{r tsne-plot-phenograph-show, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 5, fig.width = 7, cache = TRUE, dependson = c("tsne-plot-phenograph")}
+p_phenograph
+```
+
+## Prepare data update
+```{r prepare-update, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE, dependson = "combine-results"}
+# numeric results
+require(dplyr)
+cols <- c("tSNE1", "tSNE2", "pheno_cluster", 
+            "fsom_cluster", "fsom_meta_cluster")
+result <- dplyr::mutate_at(result, cols, as.numeric)
+# files and sample ids 
+result$filenames <-
+  rep(sampleNames(fset),
+      fsApply(fset, nrow, use.exprs = TRUE))[subsample]
+result$sample_id <- subsample
+result$sample_fid <-
+  apply(sapply(c(0, cumsum(fsApply(fset, nrow,
+                                   use.exprs = TRUE))),
+             function(x) subsample - x), 1,
+      function(y) min(y[y>0]))
+```
+
+## Update data
+```{r data-update-fct, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE}
+update_ff <- function(ff, res_data, cols){
+  rd <- res_data[res_data$filenames == identifier(ff), ]
+  ff@exprs <- cbind(ff@exprs[rd$sample_fid, ],
+                    as.matrix(rd[, cols]))
+  ff@parameters@data <- rbind(
+    ff@parameters@data,
+    data.frame(
+      name = cols,
+      desc = "R_cols",
+      range = apply(rd[, cols], 2, function(x)
+        diff(range(x))),
+      minRange = apply(rd[, cols], 2, min),
+      maxRange = apply(rd[, cols], 2, max),
+      row.names =
+        paste0("$P", nrow(ff@parameters@data) + 
+                 1:length(cols))))
+  ff
+}
+```
+
+## Update data
+```{r change-data, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE, dependson = c("prepare-update", "data-update-fct")}
+# change data
+fset_new <- fsApply(fset, update_ff,
+                    res_data = result, 
+                    cols = cols)
+fset_new
+```
+
+## Writing FCS file
+```{r write-data, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, dependson="change-data"}
+# write file
+new_files <- gsub(".fcs", "_clustered.fcs", files)
+flowCore::write.flowSet(fset_new,
+                        outdir = ".",
+                        filename = new_files)
+# zip output files
+zip_filename <- paste0(data_dir, "/clustered_som.zip")
+zip(zip_filename, new_files)
+```
+
+## Uploading files to cytobank
+```{r upload, echo = TRUE, eval=FALSE}
+# create new experiment
+new_experiment_name <- "test_clustered"
+new_experiment <- experiments.new(
+  cyto_session,
+  experiment_name = new_experiment_name,
+  purpose = "testing")
+
+# upload files
+fcs_files.upload_zip(cyto_session,
+                     experiment_id = new_experiment$id,
+                     file_path = zip_filename,
+                     timeout = 720)
+```
