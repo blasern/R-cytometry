@@ -1,0 +1,29 @@
+---
+title: | 
+  | R for cytometry - workflow
+author: |
+  Nello Blaser
+institute:
+  Department of Mathematics, University of Bergen
+date: April 6^th^ 2018
+output: 
+    beamer_presentation:
+        fonttheme: "structurebold"
+        includes:
+            in_header: header.tex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Workflow
+- Download [data](https://cellmass.cytobank.org/cytobank/experiments/6894) from cytobank 
+- Read fcs files
+- arcsinh-transform data
+- Clustering:
+  + FlowSOM
+  + Phenograph
+- t-SNE
+- Save data
+- Upload data
