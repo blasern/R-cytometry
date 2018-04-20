@@ -1,0 +1,106 @@
+---
+title: | 
+  | R for cytometry - citrus
+author: |
+  Nello Blaser
+institute:
+  Department of Mathematics, University of Bergen
+date: April 20^th^ 2018
+output: 
+    beamer_presentation:
+        fonttheme: "structurebold"
+        includes:
+            in_header: header.tex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+
+## Citrus
+
+[Tutorial](https://github.com/nolanlab/citrus/wiki/GettingStarted)
+
+## Start Citrus GUI
+```{r citrus-ui, warning = FALSE, messages = FALSE, echo = TRUE, eval=FALSE}
+require(citrus)
+citrus.launchUI()
+```
+
+## GUI
+\includegraphics[width=\textwidth]{figures/citrusDir.png}
+
+## GUI
+\includegraphics[width=\textwidth]{figures/citrusUI.png}
+
+## Generated script
+```{r citrus-script-1, warning = FALSE, messages = FALSE, echo = TRUE, eval=FALSE}
+# Use this line to limit the number of 
+# threads used by clustering
+# Rclusterpp.setThreads(1);
+options("mc.cores"=1);
+
+# Wnat analysis to perform?
+family = "classification"
+
+# Set data and output directories
+dataDirectory = 
+  "C:/R/win-library/3.4/citrus/extdata/example1"
+outputDirectory = file.path(dataDirectory,"citrusOutput")
+```
+
+## Generated script
+```{r citrus-script-2, warning = FALSE, messages = FALSE, echo = TRUE, eval=FALSE}
+# Specify columns to use
+clusteringColumns = c("Red","Blue")
+medianColumns=c()
+
+transformColumns = c()
+transformCofactor = 5
+
+scaleColumns = c()
+```
+
+## Generated script
+```{r citrus-script-3, warning = FALSE, messages = FALSE, echo = TRUE, eval=FALSE}
+# Specify parameters
+minimumClusterSizePercent = 0.05
+modelTypes = c("pamr")
+fileSampleSize = 1000
+nFolds = 1
+featureType = c("abundances")
+
+# List files
+fileList = data.frame(
+  defaultCondition=c("Patient01_healthy.fcs","Patient02_healthy.fcs","Patient03_healthy.fcs","Patient04_healthy.fcs","Patient05_healthy.fcs","Patient06_healthy.fcs","Patient07_healthy.fcs","Patient08_healthy.fcs","Patient09_healthy.fcs","Patient10_healthy.fcs","Patient11_diseased.fcs","Patient12_diseased.fcs","Patient13_diseased.fcs","Patient14_diseased.fcs","Patient15_diseased.fcs","Patient16_diseased.fcs","Patient17_diseased.fcs","Patient18_diseased.fcs","Patient19_diseased.fcs","Patient20_diseased.fcs"))
+labels = as.factor(c("healthy","healthy","healthy","healthy","healthy","healthy","healthy","healthy","healthy","healthy","diseased","diseased","diseased","diseased","diseased","diseased","diseased","diseased","diseased","diseased"))
+```
+
+## Generated script
+```{r citrus-script-4, warning = FALSE, messages = FALSE, echo = TRUE, eval=FALSE}
+# Run citrus
+results = citrus.full(
+            fileList=fileList,
+            labels=labels,
+            clusteringColumns=clusteringColumns,
+            dataDirectory=dataDirectory,
+            outputDirectory=outputDirectory,
+            family=family,
+            modelTypes=modelTypes,
+            nFolds=nFolds,
+            fileSampleSize=fileSampleSize,
+            featureType=featureType,
+            minimumClusterSizePercent=minimumClusterSizePercent,
+            transformColumns=transformColumns,
+            transformCofactor=transformCofactor,
+            scaleColumns=scaleColumns, 
+            medianColumns=medianColumns
+)
+```
+
+## Generated script
+```{r citrus-script-5, warning = FALSE, messages = FALSE, echo = TRUE, eval=FALSE}
+# plot results
+plot(results, outputDirectory)
+```
