@@ -1,0 +1,104 @@
+---
+title: | 
+  | R for cytometry - manual gates
+author: |
+  Nello Blaser
+institute:
+  Department of Mathematics, University of Bergen
+date: May 11^th^ 2018
+output: 
+    beamer_presentation:
+        fonttheme: "structurebold"
+        includes:
+            in_header: header.tex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+## Installing packages
+```{r install-packages, echo = TRUE, eval=FALSE, fig.height = 3, fig.width = 7}
+# install from bioconductor
+library(BiocInstalller)
+biocLite(CytoML) 
+# update to newest version
+library(devtools)
+install_github("blasern/CytoML", ref="trunk", 
+               dependencies=FALSE)
+```
+
+## Download data from cytobank
+```{r cytobank-download-1, echo = TRUE, eval=FALSE, fig.height = 3, fig.width = 7}
+# load CRAN package
+require(CytobankAPI)
+# Authenticate via authentication token
+cyto_session <- authenticate(site="cellmass",
+                             auth_token="xxx")
+# specify experiment id
+experiment_id <- 7266
+# specify data directory
+data_dir <- "fcs_from_cytobank"
+dir.create(data_dir, recursive = TRUE)
+# list fcs files
+files <- fcs_files.list(cyto_session, 
+                        experiment_id = experiment_id)
+```
+
+## Download data from cytobank
+```{r cytobank-download-2, echo = TRUE, eval=FALSE, fig.height = 3, fig.width = 7}
+# download fcs files
+downloaded_zip <- fcs_files.download_zip(
+  UserSession = cyto_session, 
+  experiment_id = experiment_id, 
+  fcs_files = files[, "id"], 
+  directory = data_dir, 
+  timeout = 60*nrow(files))
+# unzip files
+unzip(downloaded_zip, exdir = data_dir)
+# list fcs files
+fcs_files <- paste0(
+  data_dir, "/", 
+  list.files(data_dir, pattern="\\.fcs"))
+```
+
+## Download manual gates
+```{r cytobank-download-3, echo = TRUE, eval=FALSE, fig.height = 3, fig.width = 7}
+# download gates
+gates_list <- gates.list(cyto_session, 
+                         experiment_id = experiment_id)
+gates_file <- gates.gatingML_download(
+  cyto_session, experiment_id,
+  directory = data_dir, 
+  timeout = 60*nrow(gates))
+```
+
+## Read fcs files and gates
+```{r data-dir, echo = FALSE, results = "hide", cache=TRUE}
+data_dir <- "fcs_from_cytobank"
+gates_file <- paste0(data_dir, "/CytExp_7266_Gates_v1.xml")
+fcs_files <- paste0(data_dir, "/", 
+                    list.files(data_dir, pattern="\\.fcs"))
+```
+```{r load-data, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache=TRUE, results='hide', dependson = "data-dir"}
+library(flowWorkspace)
+library(CytoML)
+
+gs <- cytobank2GatingSet(gates_file, fcs_files)
+```
+
+## Combine to one matrix
+```{r combining, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE, dependson="load-data"}
+# extract groups from gating set
+cells <- fsApply(as.flowSet(gs@data), identity, 
+                 use.exprs=TRUE)
+groups <- do.call(rbind, lapply(gs, function(x) 
+  sapply(getNodes(x)[-1], function(y) 
+    getIndices(x, y))))
+combined <- cbind(cells, groups)
+```
+
+## From previous classes
+- Plot tSNE with different cell populations colored 
+- Compare with SPADE clusters
+- Add combined data to a flowSet
+- Upload final data to cytobank
