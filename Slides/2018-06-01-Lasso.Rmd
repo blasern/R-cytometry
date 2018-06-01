@@ -1,0 +1,145 @@
+---
+title: | 
+  | R for cytometry - Lasso
+author: |
+  Nello Blaser
+institute:
+  Department of Mathematics, University of Bergen
+date: June 1^st^ 2018
+output: 
+    beamer_presentation:
+        fonttheme: "structurebold"
+        includes:
+            in_header: header.tex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Download data from cytobank
+```{r cytobank-download-1, echo = TRUE, eval=FALSE, fig.height = 3, fig.width = 7}
+# load CRAN package
+require(CytobankAPI)
+# Authenticate via authentication token
+cyto_session <- authenticate(site="cellmass",
+                             auth_token="xxx")
+```
+```{r cytobank-download-2, echo = TRUE, eval=TRUE, fig.height = 3, fig.width = 7}
+# specify experiment id
+experiment_id <- 7399
+# specify data directory
+data_dir <- paste0("data_", experiment_id)
+```
+```{r cytobank-download-3, echo = TRUE, eval=FALSE, fig.height = 3, fig.width = 7}
+dir.create(data_dir, recursive = TRUE)
+# list fcs files
+files <- fcs_files.list(cyto_session, 
+                        experiment_id = experiment_id)
+```
+
+## Download data from cytobank
+```{r cytobank-download-4, echo = TRUE, eval=FALSE, fig.height = 3, fig.width = 7}
+# download fcs files
+downloaded_zip <- fcs_files.download_zip(
+  UserSession = cyto_session, 
+  experiment_id = experiment_id, 
+  fcs_files = files[, "id"], 
+  directory = data_dir, 
+  timeout = 60*nrow(files))
+unzip(downloaded_zip, exdir = data_dir)
+```
+
+## Read fcs files
+```{r load-data, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache=TRUE, results='hide'}
+require(flowCore)
+# read fcs file
+filenames <- paste0(data_dir, "/", 
+                    list.files(data_dir, 
+                               pattern = "\\.fcs"))
+fset <- read.flowSet(filenames)
+# decide on lineage markers
+#pData(fset[[1]]@parameters)
+lineage_markers <- c(
+  "CD3(110:114)Dd", "CD45(In115)Dd", 
+  "CD4(Nd145)Dd", "CD20(Sm147)Dd", 
+  "CD33(Nd148)Dd", "CD123(Eu151)Dd", 
+  "CD14(Gd160)Dd", "CD7(Yb176)Dd")
+```
+
+## FlowSOM
+```{r som, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE, dependson="load-data"}
+require(FlowSOM)
+# Set SOM parameters
+flowSOM_metaClusters <- 10
+flowSOM_xdim <- 7
+flowSOM_ydim <- 7
+flowSOM_seed <- 20180601 # for reproducible results
+
+# run self-organizing maps
+fsom <- FlowSOM(fset,
+                colsToUse = lineage_markers, 
+                xdim=flowSOM_xdim, 
+                ydim=flowSOM_xdim,
+                nClus = flowSOM_metaClusters, 
+                seed = flowSOM_seed)
+```
+
+## Summarize clusters
+```{r cluster_summary_1, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE, dependson="som"}
+# specify functional markers
+functional_markers <- 
+  c("pNFkB(Nd142)Dd", "pp38(Nd144)Dd", 
+    "pStat5(Nd150)Dd", "pAkt(Sm152)Dd", 
+    "pStat1(Eu153)Dd", "pSHP2(Sm154)Dd", 
+    "pZap70(Gd156)Dd", "pStat3(Gd158)Dd", 
+    "pSlp76(Dy164)Dd", "pBtk(Er166)Dd", 
+    "pErk(Er168)Dd", "pS6(Yb172)Dd")
+# get clusters 
+clusters <- fsom$FlowSOM$map$mapping[, 1]
+meta_clusters <- as.numeric(fsom$metaclustering[clusters])
+```
+
+## Summarize clusters
+```{r cluster_summary_2, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE, dependson="cluster_summary_1"}
+# combine functional markers and cluster data
+dd <- cbind.data.frame(
+  meta_clusters = meta_clusters, 
+  pat = rep(fset@phenoData@data$name, 
+            times = fsApply(fset, length, 
+                            use.exprs = TRUE)),
+  fsApply(fset, identity, use.exprs = TRUE)[
+    , functional_markers])
+```
+
+## Summarize clusters
+```{r cluster_summary_3, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE, dependson="cluster_summary_2"}
+require(dplyr)
+require(tidyr)
+# get medians
+median_summary <- dd %>% 
+  group_by(pat, meta_clusters) %>% 
+  summarize_all(median) %>% 
+  ungroup %>%
+  gather(variable, value, -pat, -meta_clusters) %>%
+  unite(temp, variable, meta_clusters) %>%
+  spread(temp, value)
+```
+
+## Lasso regression
+```{r output-opt, cache = TRUE, echo = FALSE}
+options(width = 60)
+```
+```{r lasso, echo = TRUE, warning = FALSE, message = FALSE, eval=TRUE, fig.height = 3, fig.width = 7, cache = TRUE, dependson=c("cluster_summary_3", "output-opt"), tidy.opts = list(width.cutoff = 40)}
+require(glmnet)
+# get medians
+X <- as.matrix(select(median_summary, -pat))
+# get outcome
+y <- grepl("BCR-XL", median_summary$pat)
+# lasso regression
+cvfit <- cv.glmnet(X, y, family = "binomial") 
+# get coeficients
+cvcoefs <- as.matrix(coef(cvfit, s="lambda.min"))
+cv_pos_coefs <- cvcoefs[abs(cvcoefs)>0, ]
+cv_pos_coefs
+```

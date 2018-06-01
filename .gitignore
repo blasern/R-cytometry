@@ -1,5 +1,7 @@
 # Data
 /Slides/fcs_from_cytobank/
+/Slides/data*
+/Slides/figures/
 
 # Caches
 /Slides/*_cache/
